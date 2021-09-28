@@ -1,0 +1,10 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/bullseye64"
+  config.vm.provider "virtualbox" do |vbox|
+    vbox.memory = 4096
+    vbox.cpus = 2
+  end
+  config.vm.provision "ansible" do |ansible|
+    ansible.playbook = "playbook.yaml"
+  end
+end

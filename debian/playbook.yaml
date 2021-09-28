@@ -1,0 +1,85 @@
+---
+- name: Setup Debian development VM
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install prerequisites
+      apt:
+        update_cache: true
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+
+    - name: Add Docker repo key
+      shell:
+        cmd: >
+          curl -fsSL https://download.docker.com/linux/debian/gpg
+          | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+        creates: /usr/share/keyrings/docker-archive-keyring.gpg
+
+    - name: Create repo file
+      copy:
+        src: docker.list
+        dest: /etc/apt/sources.list.d/docker.list
+
+    - name: Install docker
+      apt:
+        update_cache: true
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+
+    - name: Create docker group
+      group:
+        name: docker
+
+    - name: Add vagrant to docker group
+      user:
+        name: vagrant
+        groups:
+          - docker
+        append: true
+
+    - name: Install virtual environment support
+      apt:
+        name: python3-venv
+
+
+- name: Create virtual envs
+  hosts: all
+
+  vars:
+    venv_dir: /home/vagrant/venvs
+    ansible_versions:
+      a29: ansible==2.9.*
+      a210: ansible-base
+      a211: ansible-core==2.11.*
+      a212: ansible-core==2.12.0b1
+      adev: https://github.com/ansible/ansible/archive/devel.tar.gz
+
+  tasks:
+    - name: Create venv dir
+      file:
+        state: directory
+        path: "{{ venv_dir }}"
+
+    - name: Create venvs for different Ansible versions
+      command:
+        cmd: python3 -m venv {{ venv_dir }}/{{ item }}
+        creates: "{{ venv_dir }}/{{ item }}"
+      loop: "{{ ansible_versions.keys() | list }}"
+
+    - name: Update pip installations
+      command:
+        cmd: "{{ venv_dir }}/{{ item }}/bin/pip install -U pip"
+      loop: "{{ ansible_versions.keys() | list }}"
+
+    - name: Install ansible
+      command:
+        cmd: "{{ venv_dir }}/{{ item.key }}/bin/pip install {{ item.value }}"
+      loop: "{{ ansible_versions | dict2items }}"
