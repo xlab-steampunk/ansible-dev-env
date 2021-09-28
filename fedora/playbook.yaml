@@ -1,0 +1,71 @@
+---
+- name: Setup Fedora development VM
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install core dnf plugins
+      dnf:
+        name: dnf-plugins-core
+
+    - name: Add Docker repo
+      command:
+        cmd: dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+
+    - name: Install docker
+      dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+
+    - name: Start and enable docker
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Create docker group
+      group:
+        name: docker
+
+    - name: Add vagrant to docker group
+      user:
+        name: vagrant
+        groups:
+          - docker
+        append: true
+
+
+- name: Create virtual envs
+  hosts: all
+
+  vars:
+    venv_dir: /home/vagrant/venvs
+    ansible_versions:
+      a29: ansible==2.9.*
+      a210: ansible-base
+      a211: ansible-core==2.11.*
+      adev: https://github.com/ansible/ansible/archive/devel.tar.gz
+
+  tasks:
+    - name: Create venv dir
+      file:
+        state: directory
+        path: "{{ venv_dir }}"
+
+    - name: Create venvs for different Ansible versions
+      command:
+        cmd: python3 -m venv {{ venv_dir }}/{{ item }}
+        creates: "{{ venv_dir }}/{{ item }}"
+      loop: "{{ ansible_versions.keys() | list }}"
+
+    - name: Update pip installations
+      command:
+        cmd: "{{ venv_dir }}/{{ item }}/bin/pip install -U pip"
+      loop: "{{ ansible_versions.keys() | list }}"
+
+    - name: Install ansible
+      command:
+        cmd: "{{ venv_dir }}/{{ item.key }}/bin/pip install {{ item.value }}"
+      loop: "{{ ansible_versions | dict2items }}"
